@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>IPL Team Analysis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen py-10">
+  <div class="max-w-4xl mx-auto space-y-8">
+    <h1 class="text-2xl font-bold text-center">Analysis Results</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Team 1 -->
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="font-semibold mb-4">Team 1</h2>
+        <img src="{{ team1_img }}" class="mb-4 rounded"/>
+        <h3 class="font-medium">Batting</h3>
+        <ul class="list-disc list-inside mb-2">
+          {% for p in bat1 %}
+            <li>{{ p.Batsman }} – {{ p.R }} runs off {{ p.B }} balls (SR {{ p.SR }})</li>
+          {% endfor %}
+        </ul>
+        <h3 class="font-medium">Bowling</h3>
+        <ul class="list-disc list-inside mb-4">
+          {% for p in bowl1 %}
+            <li>{{ p.Bowler }} – {{ p.W }} wickets in {{ p.O }} overs (Econ {{ p.Econ }})</li>
+          {% endfor %}
+        </ul>
+        <h3 class="font-medium">Summary</h3>
+        <ul class="list-inside space-y-1">
+          {% for k,v in sum1.items() %}
+            <li><strong>{{ k }}:</strong> {{ v }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- Team 2 -->
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="font-semibold mb-4">Team 2</h2>
+        <img src="{{ team2_img }}" class="mb-4 rounded"/>
+        <h3 class="font-medium">Batting</h3>
+        <ul class="list-disc list-inside mb-2">
+          {% for p in bat2 %}
+            <li>{{ p.Batsman }} – {{ p.R }} runs off {{ p.B }} balls (SR {{ p.SR }})</li>
+          {% endfor %}
+        </ul>
+        <h3 class="font-medium">Bowling</h3>
+        <ul class="list-disc list-inside mb-4">
+          {% for p in bowl2 %}
+            <li>{{ p.Bowler }} – {{ p.W }} wickets in {{ p.O }} overs (Econ {{ p.Econ }})</li>
+          {% endfor %}
+        </ul>
+        <h3 class="font-medium">Summary</h3>
+        <ul class="list-inside space-y-1">
+          {% for k,v in sum2.items() %}
+            <li><strong>{{ k }}:</strong> {{ v }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="text-center">
+      <a href="/" class="inline-block bg-gray-200 px-4 py-2 rounded hover:bg-gray-300">
+        Analyze New Screenshots
+      </a>
+    </div>
+  </div>
+</body>
+</html>

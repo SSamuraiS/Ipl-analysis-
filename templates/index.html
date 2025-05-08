@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>IPL Dashboard & Predictor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+  <div class="max-w-6xl mx-auto py-10 px-4 space-y-10">
+
+    <h1 class="text-4xl font-bold text-center">IPL Analytics & Predictor</h1>
+
+    <div class="bg-white p-6 rounded-lg shadow space-y-6">
+      <h2 class="text-2xl font-semibold">Predict Match Outcome</h2>
+      {% if error %}
+        <div class="p-3 bg-red-100 text-red-800 rounded">{{ error }}</div>
+      {% endif %}
+      <form action="/predict" method="post" enctype="multipart/form-data"
+            class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div>
+          <label class="block font-medium mb-1">Team 1 Screenshot</label>
+          <div id="zone1" tabindex="0"
+               class="relative h-36 border-2 border-dashed border-gray-300 rounded-lg
+                      flex items-center justify-center text-gray-400 hover:border-indigo-500
+                      focus:outline-none focus:border-indigo-500 transition">
+            <span id="label1">Hover & Paste<br>(Ctrl+V)</span>
+            <img id="preview1" class="absolute inset-0 object-contain p-2 hidden"/>
+          </div>
+          <input type="file" name="team1" id="team1" accept="image/*" class="hidden"/>
+        </div>
+        <div>
+          <label class="block font-medium mb-1">Team 2 Screenshot</label>
+          <div id="zone2" tabindex="0"
+               class="relative h-36 border-2 border-dashed border-gray-300 rounded-lg
+                      flex items-center justify-center text-gray-400 hover:border-indigo-500
+                      focus:outline-none focus:border-indigo-500 transition">
+            <span id="label2">Hover & Paste<br>(Ctrl+V)</span>
+            <img id="preview2" class="absolute inset-0 object-contain p-2 hidden"/>
+          </div>
+          <input type="file" name="team2" id="team2" accept="image/*" class="hidden"/>
+        </div>
+        <button type="submit"
+                class="col-span-1 md:col-span-2 bg-indigo-600 text-white py-2 rounded
+                       hover:bg-indigo-700 transition">
+          Predict Winner
+        </button>
+      </form>
+
+      {% if pred %}
+      <div class="mt-6 bg-indigo-100 p-4 rounded-lg space-y-1">
+        <p><strong>{{ team1 }}</strong> – Wins: {{ strength1 }}</p>
+        <p><strong>{{ team2 }}</strong> – Wins: {{ strength2 }}</p>
+        <p class="mt-2 text-2xl font-bold">🏆 Predicted Winner: {{ predicted }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Dashboard Charts -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-2">Matches Per Season</h2>
+        <canvas id="seasonChart"></canvas>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-2">Top Teams by Wins</h2>
+        <canvas id="winsChart"></canvas>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-2">Top 10 Batsmen</h2>
+        <canvas id="batsmenChart"></canvas>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-2">Top 10 Bowlers</h2>
+        <canvas id="bowlersChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function setupZone(zoneId, inputId, previewId, labelId) {
+      const z = document.getElementById(zoneId),
+            inp = document.getElementById(inputId),
+            pre = document.getElementById(previewId),
+            lab = document.getElementById(labelId);
+      z.addEventListener("mouseenter", ()=> z.focus());
+      z.addEventListener("paste", e => {
+        e.preventDefault();
+        for (let it of e.clipboardData.items) {
+          if (it.kind==="file" && it.type.startsWith("image/")) {
+            const blob = it.getAsFile(), dt = new DataTransfer();
+            dt.items.add(blob);
+            inp.files = dt.files;
+            pre.src = URL.createObjectURL(blob);
+            pre.classList.remove("hidden");
+            lab.classList.add("hidden");
+            break;
+          }
+        }
+      });
+    }
+    setupZone("zone1","team1","preview1","label1");
+    setupZone("zone2","team2","preview2","label2");
+
+    const mp = {{ mp_json|safe }},
+          tw = {{ tw_json|safe }},
+          tb = {{ tb_json|safe }},
+          bl = {{ bl_json|safe }};
+
+    new Chart(document.getElementById("seasonChart"), {
+      type: "bar",
+      data: {
+        labels: mp.map(d=>d.season),
+        datasets:[{ label:"Matches", data: mp.map(d=>d.matches), backgroundColor:"#6366F1" }]
+      }
+    });
+    new Chart(document.getElementById("winsChart"), {
+      type:"bar",
+      data:{
+        labels: tw.map(d=>d.team),
+        datasets:[{ label:"Wins", data: tw.map(d=>d.wins), backgroundColor:"#10B981" }]
+      }
+    });
+    new Chart(document.getElementById("batsmenChart"), {
+      type:"bar",
+      data:{
+        labels: tb.map(d=>d.batsman),
+        datasets:[{ label:"Runs", data: tb.map(d=>d.runs), backgroundColor:"#F59E0B" }]
+      }
+    });
+    new Chart(document.getElementById("bowlersChart"), {
+      type:"bar",
+      data:{
+        labels: bl.map(d=>d.bowler),
+        datasets:[{ label:"Wickets", data: bl.map(d=>d.wickets), backgroundColor:"#EF4444" }]
+      }
+    });
+  </script>
+</body>
+</html>
