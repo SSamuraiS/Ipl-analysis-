@@ -1,145 +1,306 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>IPL Dashboard & Predictor</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body class="bg-gray-50 text-gray-800 min-h-screen">
-  <div class="max-w-6xl mx-auto py-10 px-4 space-y-10">
-
-    <h1 class="text-4xl font-bold text-center">IPL Analytics & Predictor</h1>
-
-    <div class="bg-white p-6 rounded-lg shadow space-y-6">
-      <h2 class="text-2xl font-semibold">Predict Match Outcome</h2>
-      {% if error %}
-        <div class="p-3 bg-red-100 text-red-800 rounded">{{ error }}</div>
-      {% endif %}
-      <form action="/predict" method="post" enctype="multipart/form-data"
-            class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-        <div>
-          <label class="block font-medium mb-1">Team 1 Screenshot</label>
-          <div id="zone1" tabindex="0"
-               class="relative h-36 border-2 border-dashed border-gray-300 rounded-lg
-                      flex items-center justify-center text-gray-400 hover:border-indigo-500
-                      focus:outline-none focus:border-indigo-500 transition">
-            <span id="label1">Hover & Paste<br>(Ctrl+V)</span>
-            <img id="preview1" class="absolute inset-0 object-contain p-2 hidden"/>
-          </div>
-          <input type="file" name="team1" id="team1" accept="image/*" class="hidden"/>
-        </div>
-        <div>
-          <label class="block font-medium mb-1">Team 2 Screenshot</label>
-          <div id="zone2" tabindex="0"
-               class="relative h-36 border-2 border-dashed border-gray-300 rounded-lg
-                      flex items-center justify-center text-gray-400 hover:border-indigo-500
-                      focus:outline-none focus:border-indigo-500 transition">
-            <span id="label2">Hover & Paste<br>(Ctrl+V)</span>
-            <img id="preview2" class="absolute inset-0 object-contain p-2 hidden"/>
-          </div>
-          <input type="file" name="team2" id="team2" accept="image/*" class="hidden"/>
-        </div>
-        <button type="submit"
-                class="col-span-1 md:col-span-2 bg-indigo-600 text-white py-2 rounded
-                       hover:bg-indigo-700 transition">
-          Predict Winner
-        </button>
-      </form>
-
-      {% if pred %}
-      <div class="mt-6 bg-indigo-100 p-4 rounded-lg space-y-1">
-        <p><strong>{{ team1 }}</strong> – Wins: {{ strength1 }}</p>
-        <p><strong>{{ team2 }}</strong> – Wins: {{ strength2 }}</p>
-        <p class="mt-2 text-2xl font-bold">🏆 Predicted Winner: {{ predicted }}</p>
-      </div>
-      {% endif %}
-    </div>
-
-    <!-- Dashboard Charts -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-xl font-semibold mb-2">Matches Per Season</h2>
-        <canvas id="seasonChart"></canvas>
-      </div>
-      <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-xl font-semibold mb-2">Top Teams by Wins</h2>
-        <canvas id="winsChart"></canvas>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-xl font-semibold mb-2">Top 10 Batsmen</h2>
-        <canvas id="batsmenChart"></canvas>
-      </div>
-      <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-xl font-semibold mb-2">Top 10 Bowlers</h2>
-        <canvas id="bowlersChart"></canvas>
-      </div>
-    </div>
-
-  </div>
-
-  <script>
-    function setupZone(zoneId, inputId, previewId, labelId) {
-      const z = document.getElementById(zoneId),
-            inp = document.getElementById(inputId),
-            pre = document.getElementById(previewId),
-            lab = document.getElementById(labelId);
-      z.addEventListener("mouseenter", ()=> z.focus());
-      z.addEventListener("paste", e => {
-        e.preventDefault();
-        for (let it of e.clipboardData.items) {
-          if (it.kind==="file" && it.type.startsWith("image/")) {
-            const blob = it.getAsFile(), dt = new DataTransfer();
-            dt.items.add(blob);
-            inp.files = dt.files;
-            pre.src = URL.createObjectURL(blob);
-            pre.classList.remove("hidden");
-            lab.classList.add("hidden");
-            break;
-          }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPL - Advanced Cricket Analytics</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#f59e0b',
+                        accent: '#10b981',
+                        surface: '#f8fafc',
+                        dark: '#0f172a',
+                        gradient1: '#4f46e5',
+                        gradient2: '#9333ea'
+                    },
+                    fontFamily: {
+                        sans: ['Urbanist', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    },
+                    boxShadow: {
+                        'neumorphic': '8px 8px 16px #d1d5db, -8px -8px 16px #ffffff'
+                    }
+                }
+            }
         }
-      });
-    }
-    setupZone("zone1","team1","preview1","label1");
-    setupZone("zone2","team2","preview2","label2");
+    </script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+</head>
 
-    const mp = {{ mp_json|safe }},
-          tw = {{ tw_json|safe }},
-          tb = {{ tb_json|safe }},
-          bl = {{ bl_json|safe }};
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen font-sans">
+    <main class="max-w-7xl mx-auto px-4 py-12 space-y-16">
+        
+        <!-- Header Section -->
+        <header class="text-center space-y-6">
+            <div class="animate-fade-in">
+                <h1 class="text-5xl font-bold bg-gradient-to-r from-gradient1 to-gradient2 bg-clip-text text-transparent">
+                    IPL ANALYSIS
+                </h1>
+                <p class="text-slate-600 mt-4 text-lg">Advanced Match Prediction & Performance Analytics</p>
+            </div>
+        </header>
 
-    new Chart(document.getElementById("seasonChart"), {
-      type: "bar",
-      data: {
-        labels: mp.map(d=>d.season),
-        datasets:[{ label:"Matches", data: mp.map(d=>d.matches), backgroundColor:"#6366F1" }]
-      }
-    });
-    new Chart(document.getElementById("winsChart"), {
-      type:"bar",
-      data:{
-        labels: tw.map(d=>d.team),
-        datasets:[{ label:"Wins", data: tw.map(d=>d.wins), backgroundColor:"#10B981" }]
-      }
-    });
-    new Chart(document.getElementById("batsmenChart"), {
-      type:"bar",
-      data:{
-        labels: tb.map(d=>d.batsman),
-        datasets:[{ label:"Runs", data: tb.map(d=>d.runs), backgroundColor:"#F59E0B" }]
-      }
-    });
-    new Chart(document.getElementById("bowlersChart"), {
-      type:"bar",
-      data:{
-        labels: bl.map(d=>d.bowler),
-        datasets:[{ label:"Wickets", data: bl.map(d=>d.wickets), backgroundColor:"#EF4444" }]
-      }
-    });
-  </script>
+        <!-- Prediction Card -->
+        <section class="animate-slide-up">
+            <div class="bg-white rounded-3xl shadow-xl p-8 max-w-2xl mx-auto transform transition hover:scale-[1.01]">
+                <h2 class="text-3xl font-bold text-dark mb-8">Predict Match Outcome</h2>
+                
+                {% if error %}
+                <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6 border border-red-100">
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <form action="/predict" method="post" class="space-y-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-slate-700">Team 1</label>
+                            <select name="team1_slug" required 
+                                    class="w-full px-6 py-4 border-2 border-slate-200 rounded-xl bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 transition">
+                                <option value="" disabled selected>Select First Team</option>
+                                {% for name, slug in TEAM_SLUGS.items() %}
+                                <option value="{{ slug }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="space-y-4">
+                            <label class="block text-sm font-medium text-slate-700">Team 2</label>
+                            <select name="team2_slug" required 
+                                    class="w-full px-6 py-4 border-2 border-slate-200 rounded-xl bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 transition">
+                                <option value="" disabled selected>Select Second Team</option>
+                                {% for name, slug in TEAM_SLUGS.items() %}
+                                <option value="{{ slug }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" 
+                            class="w-full py-4 bg-gradient-to-r from-gradient1 to-gradient2 text-white font-semibold rounded-xl hover:shadow-lg transition-all">
+                        Generate Prediction →
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        {% if pred %}
+        <section class="animate-slide-up">
+            <div class="bg-white rounded-3xl shadow-xl p-8 space-y-12">
+                <h3 class="text-3xl font-bold text-dark">Battle Analysis</h3>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Team 1 -->
+                    <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                        <h4 class="text-xl font-bold text-gradient1 mb-6">{{ team1_name }}</h4>
+                        <ul class="space-y-4">
+                            {% for p in stats1 %}
+                            <li class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm hover:shadow-md transition">
+                                <span class="text-slate-600">{{ p.player }}</span>
+                                <span class="font-mono text-gradient1 font-medium">{{ p.total }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <!-- Team 2 -->
+                    <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                        <h4 class="text-xl font-bold text-gradient2 mb-6">{{ team2_name }}</h4>
+                        <ul class="space-y-4">
+                            {% for p in stats2 %}
+                            <li class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm hover:shadow-md transition">
+                                <span class="text-slate-600">{{ p.player }}</span>
+                                <span class="font-mono text-gradient2 font-medium">{{ p.total }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Final Prediction -->
+                <div class="bg-gradient-to-r from-gradient1 to-gradient2 rounded-2xl p-8 text-center">
+                    <p class="text-2xl font-bold text-white">
+                        {{ team1_name }} vs {{ team2_name }} ➔
+                        <span class="bg-white/10 px-4 py-2 rounded-full ml-2">{{ predicted_group }} Victory!</span>
+                    </p>
+                    <p class="text-white/90 mt-4">Analysis based on comprehensive player performance metrics</p>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Analytics Dashboard -->
+        <section class="space-y-12 animate-fade-in">
+            <h3 class="text-3xl font-bold text-dark text-center">Season Analytics</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Matches Chart -->
+                <div class="bg-white rounded-2xl shadow-xl p-6">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-3 h-8 bg-gradient1 rounded-full"></div>
+                        <h4 class="text-xl font-bold text-dark">Matches per Season</h4>
+                    </div>
+                    <div class="h-80">
+                        <canvas id="seasonChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Wins Chart -->
+                <div class="bg-white rounded-2xl shadow-xl p-6">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-3 h-8 bg-gradient2 rounded-full"></div>
+                        <h4 class="text-xl font-bold text-dark">Team Wins Distribution</h4>
+                    </div>
+                    <div class="h-80">
+                        <canvas id="winsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Batsmen Chart -->
+                <div class="bg-white rounded-2xl shadow-xl p-6">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-3 h-8 bg-accent rounded-full"></div>
+                        <h4 class="text-xl font-bold text-dark">Top Performers - Batting</h4>
+                    </div>
+                    <div class="h-80">
+                        <canvas id="batsmenChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bowlers Chart -->
+                <div class="bg-white rounded-2xl shadow-xl p-6">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-3 h-8 bg-secondary rounded-full"></div>
+                        <h4 class="text-xl font-bold text-dark">Top Performers - Bowling</h4>
+                    </div>
+                    <div class="h-80">
+                        <canvas id="bowlersChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Chart Configuration -->
+    <script>
+        const createGradient = (ctx, color1, color2) => {
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            return gradient;
+        };
+
+        // Matches per Season
+        new Chart(document.getElementById('seasonChart'), {
+            type: 'bar',
+            data: {
+                labels: {{ mp_json | safe }}.map(d => d.season),
+                datasets: [{
+                    label: 'Matches',
+                    data: {{ mp_json | safe }}.map(d => d.matches),
+                    backgroundColor: (ctx) => createGradient(ctx.chart.ctx, '#6366f1', '#4f46e5'),
+                    borderRadius: 8,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Team Wins
+        new Chart(document.getElementById('winsChart'), {
+            type: 'doughnut',
+            data: {
+                labels: {{ tw_json | safe }}.map(d => d.team),
+                datasets: [{
+                    data: {{ tw_json | safe }}.map(d => d.wins),
+                    backgroundColor: ['#6366f1', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: { bodyFont: { family: 'Urbanist' } }
+                }
+            }
+        });
+
+        // Batsmen
+        new Chart(document.getElementById('batsmenChart'), {
+            type: 'line',
+            data: {
+                labels: {{ tb_json | safe }}.map(d => d.batsman),
+                datasets: [{
+                    label: 'Runs',
+                    data: {{ tb_json | safe }}.map(d => d.runs),
+                    borderColor: '#10b981',
+                    tension: 0.4,
+                    fill: true,
+                    backgroundColor: (ctx) => createGradient(ctx.chart.ctx, '#10b98120', '#10b98102')
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Bowlers
+        new Chart(document.getElementById('bowlersChart'), {
+            type: 'bar',
+            data: {
+                labels: {{ bl_json | safe }}.map(d => d.bowler),
+                datasets: [{
+                    label: 'Wickets',
+                    data: {{ bl_json | safe }}.map(d => d.wickets),
+                    backgroundColor: (ctx) => createGradient(ctx.chart.ctx, '#f59e0b', '#f59e0b'),
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+    </script>
+
+    <!-- Animation Styles -->
+    <style>
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slide-up {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in { animation: fade-in 0.6s ease-out; }
+        .animate-slide-up { animation: slide-up 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+    </style>
 </body>
 </html>

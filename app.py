@@ -1,112 +1,167 @@
-import os, json, re
+import os
+import json
+import requests
+
 import pandas as pd
-import easyocr
 from flask import Flask, render_template, request
+from bs4 import BeautifulSoup
 
+# ─── APP SETUP ───────────────────────────────────────────────────────────────
 app = Flask(__name__)
-HERE        = os.path.dirname(__file__)
-DATA_DIR    = os.path.join(HERE, "data")
-UPLOAD_DIR  = os.path.join(HERE, "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# ─── OCR SETUP ────────────────────────────────────────────────────────────────
-reader = easyocr.Reader(["en"], gpu=False)
+HERE     = os.path.dirname(__file__)
+DATA_DIR = os.path.join(HERE, "data")
 
 # ─── LOAD & NORMALIZE DATA ───────────────────────────────────────────────────
 matches    = pd.read_csv(os.path.join(DATA_DIR, "matches.csv"))
 deliveries = pd.read_csv(os.path.join(DATA_DIR, "deliveries.csv"))
 deliveries.columns = deliveries.columns.str.lower()
 
-# figure out which column is which
-bat_col = "batsman" if "batsman" in deliveries.columns else "batter"
-runs_col = "batsman_runs" if "batsman_runs" in deliveries.columns else next(c for c in deliveries.columns if "runs" in c and c not in ["extra_runs","total_runs"])
+bat_col  = "batsman" if "batsman" in deliveries.columns else "batter"
+runs_col = "batsman_runs" if "batsman_runs" in deliveries.columns else next(
+    c for c in deliveries.columns
+    if "runs" in c and c not in ["extra_runs","total_runs"]
+)
 bowl_col = "bowler"
 out_col  = "player_dismissed" if "player_dismissed" in deliveries.columns else None
 
-# ─── DASHBOARD AGGREGATIONS ───────────────────────────────────────────────────
-mp = (matches
-      .groupby("season")["id"].count()
-      .reset_index().rename(columns={"id":"matches"})
-      .sort_values("season"))
-tw = (matches
-      .groupby("winner")["id"].count()
-      .reset_index().rename(columns={"winner":"team","id":"wins"})
-      .sort_values("wins", ascending=False).head(10))
-tb = (deliveries
-      .groupby(bat_col)[runs_col].sum()
-      .reset_index().rename(columns={bat_col:"batsman", runs_col:"runs"})
-      .sort_values("runs", ascending=False).head(10))
+# Precompute career totals
+batsman_runs   = deliveries.groupby(bat_col)[runs_col].sum().to_dict()
+bowler_wickets = {}
+if out_col:
+    bowler_wickets = (
+        deliveries.dropna(subset=[out_col])
+                  .groupby(bowl_col)[out_col]
+                  .count()
+                  .to_dict()
+    )
+
+all_players = set(batsman_runs) | set(bowler_wickets)
+
+# Historical overall wins (fallback)
+wins_count = matches["winner"].value_counts().to_dict()
+
+# ─── TEAM SLUGS & INVERSE MAP ────────────────────────────────────────────────
+TEAM_SLUGS = {
+    "Chennai Super Kings":         "chennai-super-kings",
+    "Delhi Capitals":              "delhi-capitals",
+    "Gujarat Titans":              "gujarat-titans",
+    "Kolkata Knight Riders":       "kolkata-knight-riders",
+    "Lucknow Super Giants":        "lucknow-super-giants",
+    "Mumbai Indians":              "mumbai-indians",
+    "Punjab Kings":                "punjab-kings",
+    "Rajasthan Royals":            "rajasthan-royals",
+    "Royal Challengers Bengaluru": "royal-challengers-bengaluru",
+    "Sunrisers Hyderabad":         "sunrisers-hyderabad",
+}
+SLUG_TO_NAME = {v: k for k, v in TEAM_SLUGS.items()}
+
+# ─── SCRAPE LIVE SQUAD ────────────────────────────────────────────────────────
+def fetch_squad(slug):
+    url  = f"https://www.iplt20.com/teams/{slug}"
+    resp = requests.get(url)
+    soup = BeautifulSoup(resp.text, "html.parser")
+    js   = soup.find("script", id="__NEXT_DATA__")
+    if not js:
+        return []
+    data = json.loads(js.string)
+    squad = (data.get("props", {})
+                 .get("pageProps", {})
+                 .get("team", {})
+                 .get("squad", []))
+    return [p["playerFullName"].strip()
+            for p in squad if p.get("playerFullName")]
+
+# ─── COMPUTE SQUAD STATS ─────────────────────────────────────────────────────
+def compute_player_stats(players):
+    stats, total = [], 0
+    for name in players:
+        runs    = batsman_runs.get(name, 0)
+        wkts    = bowler_wickets.get(name, 0)
+        s       = runs + wkts
+        if s > 0:
+            stats.append({"player": name, "runs": runs, "wickets": wkts, "total": s})
+            total += s
+    return total, stats
+
+# ─── DASHBOARD DATA ─────────────────────────────────────────────────────────
+mp = (matches.groupby("season")["id"].count()
+           .reset_index().rename(columns={"id":"matches"})
+           .sort_values("season"))
+tw = (matches.groupby("winner")["id"].count()
+           .reset_index().rename(columns={"winner":"team","id":"wins"})
+           .sort_values("wins", ascending=False).head(10))
+tb = (deliveries.groupby(bat_col)[runs_col].sum()
+           .reset_index().rename(columns={bat_col:"batsman", runs_col:"runs"})
+           .sort_values("runs", ascending=False).head(10))
 bl = pd.DataFrame()
 if out_col:
     bl = (deliveries.dropna(subset=[out_col])
-          .groupby(bowl_col)[out_col].count()
-          .reset_index().rename(columns={bowl_col:"bowler", out_col:"wickets"})
-          .sort_values("wickets", ascending=False).head(10))
+              .groupby(bowl_col)[out_col].count()
+              .reset_index().rename(columns={bowl_col:"bowler", out_col:"wickets"})
+              .sort_values("wickets", ascending=False).head(10))
 
+# JSON blobs for Chart.js
 mp_json = json.dumps(mp.to_dict("records"))
 tw_json = json.dumps(tw.to_dict("records"))
 tb_json = json.dumps(tb.to_dict("records"))
 bl_json = json.dumps(bl.to_dict("records"))
 
-# ─── PREDICTOR SETUP ─────────────────────────────────────────────────────────
-teams = sorted(set(matches["team1"]).union(matches["team2"]))
-wins_count = matches["winner"].value_counts().to_dict()
-
-def extract_team_from_ocr(raw):
-    # look for the first line that contains *two* known suffixes
-    for ln in raw.splitlines():
-        ln_low = ln.strip().lower()
-        found = [t for t in teams if t.lower().split()[-1] in ln_low]
-        if len(found) >= 2:
-            return found[0], found[1]
-    return None, None
-
 def dashboard_ctx():
-    return dict(
-        mp_json=mp_json, tw_json=tw_json,
-        tb_json=tb_json, bl_json=bl_json,
-        matches_per_season=mp.to_dict("records"),
-        team_wins=tw.to_dict("records"),
-        top_batsmen=tb.to_dict("records"),
-        top_bowlers=bl.to_dict("records")
-    )
+    return {
+        "TEAM_SLUGS":         TEAM_SLUGS,
+        "mp_json":            mp_json,
+        "tw_json":            tw_json,
+        "tb_json":            tb_json,
+        "bl_json":            bl_json,
+        "matches_per_season": mp.to_dict("records"),
+        "team_wins":          tw.to_dict("records"),
+        "top_batsmen":        tb.to_dict("records"),
+        "top_bowlers":        bl.to_dict("records"),
+    }
 
-# ─── ROUTES ───────────────────────────────────────────────────────────────────
+# ─── ROUTES ─────────────────────────────────────────────────────────────────
 @app.route("/", methods=["GET"])
 def index():
     return render_template("index.html", **dashboard_ctx())
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    f1 = request.files.get("team1")
-    f2 = request.files.get("team2")
-    if not f1 or not f2 or not f1.filename or not f2.filename:
-        return render_template("index.html", error="Please paste both screenshots.", **dashboard_ctx())
-
-    p1 = os.path.join(UPLOAD_DIR, f1.filename); f1.save(p1)
-    p2 = os.path.join(UPLOAD_DIR, f2.filename); f2.save(p2)
-
-    raw1 = "\n".join(reader.readtext(p1, detail=0, paragraph=True))
-    raw2 = "\n".join(reader.readtext(p2, detail=0, paragraph=True))
-    t1a, t2a = extract_team_from_ocr(raw1)
-    t1b, t2b = extract_team_from_ocr(raw2)
-    t1 = t1a or t1b
-    t2 = t2a or t2b
-
+    t1 = request.form.get("team1_slug")
+    t2 = request.form.get("team2_slug")
     if not t1 or not t2:
-        return render_template("index.html", error="Could not detect both teams from your screenshots.", **dashboard_ctx())
+        return render_template("index.html",
+                               error="Please select both teams.",
+                               **dashboard_ctx())
 
-    s1 = wins_count.get(t1, 0)
-    s2 = wins_count.get(t2, 0)
-    winner = t1 if s1 >= s2 else t2
+    squad1 = fetch_squad(t1)
+    squad2 = fetch_squad(t2)
+    s1, stats1 = compute_player_stats(squad1)
+    s2, stats2 = compute_player_stats(squad2)
+
+    team1 = SLUG_TO_NAME[t1]
+    team2 = SLUG_TO_NAME[t2]
+
+    # 1) prefer squad-stat totals
+    if s1 > s2:
+        winner = team1
+    elif s2 > s1:
+        winner = team2
+    else:
+        # 2) fallback to historical overall wins
+        w1 = wins_count.get(team1, 0)
+        w2 = wins_count.get(team2, 0)
+        winner = team1 if w1 >= w2 else team2
 
     return render_template("index.html",
-        pred=True,
-        team1=t1, strength1=s1,
-        team2=t2, strength2=s2,
-        predicted=winner,
-        **dashboard_ctx()
-    )
+                           pred=True,
+                           team1_name=team1,
+                           team2_name=team2,
+                           stats1=stats1,
+                           stats2=stats2,
+                           strength1=s1,
+                           strength2=s2,
+                           predicted_group=winner,
+                           **dashboard_ctx())
 
 if __name__ == "__main__":
     app.run(debug=True)
